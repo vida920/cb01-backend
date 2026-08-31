@@ -16,7 +16,7 @@ const posterCache = {};
 let cachedIp = null;
 let lastDnsFetch = 0;
 
-async function getDomainIp(domain = 'cb01uno.lat') {
+async function getDomainIp(domain = 'cineblog001.me') {
   const now = Date.now();
   if (cachedIp && now - lastDnsFetch < 300000) return cachedIp;
   try {
@@ -30,23 +30,11 @@ async function getDomainIp(domain = 'cb01uno.lat') {
       return cachedIp;
     }
   } catch (e) {}
-  return cachedIp || '104.21.22.13';
+  return cachedIp || '172.67.209.229';
 }
 
-async function fetchCb01Url(urlPath = '/') {
-  try {
-    const directRes = await axios.get('https://cb01uno.lat' + urlPath, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7'
-      },
-      timeout: 8000
-    });
-    if (directRes.data) return directRes.data;
-  } catch (directErr) {}
-
-  const domain = 'cb01uno.lat';
+async function fetchCineblogUrl(urlPath = '/') {
+  const domain = 'cineblog001.me';
   const ip = await getDomainIp(domain);
 
   return new Promise((resolve, reject) => {
@@ -58,7 +46,7 @@ async function fetchCb01Url(urlPath = '/') {
       servername: domain,
       headers: {
         'Host': domain,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7'
       },
@@ -74,7 +62,7 @@ async function fetchCb01Url(urlPath = '/') {
             loc = parsed.pathname + (parsed.search || '');
           } catch (e) {}
         }
-        return fetchCb01Url(loc).then(resolve).catch(reject);
+        return fetchCineblogUrl(loc).then(resolve).catch(reject);
       }
 
       let data = '';
@@ -85,7 +73,7 @@ async function fetchCb01Url(urlPath = '/') {
     req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Timeout richiesta CB01'));
+      reject(new Error('Timeout richiesta'));
     });
     req.end();
   });
@@ -96,7 +84,7 @@ async function getHdPoster(title, isTv = false) {
   if (posterCache[cacheKey]) return posterCache[cacheKey];
 
   try {
-    const clean = title.replace(/\[HD\]|\(20\d\d\)|\(19\d\d\)|–.*|Stagione.*/gi, '').trim();
+    const clean = title.replace(/\[HD\]|\[ITA\]|\(20\d\d\)|\(19\d\d\)|–.*|Stagione.*/gi, '').trim();
     const type = isTv ? 'tv' : 'movie';
     const res = await axios.get(`https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&language=it-IT&query=${encodeURIComponent(clean)}`, { timeout: 4000 });
     const match = res.data?.results?.[0];
@@ -111,9 +99,10 @@ async function getHdPoster(title, isTv = false) {
 }
 
 app.get('/', (req, res) => {
-  res.json({ status: 'online', service: 'CB01 Scraper Backend' });
+  res.json({ status: 'online', service: 'Cineblog Streaming Backend' });
 });
 
+// 1. CATALOGO FILM & SERIE TV
 app.get('/api/cb01/catalog', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const section = req.query.section || 'movies';
@@ -121,22 +110,22 @@ app.get('/api/cb01/catalog', async (req, res) => {
   const pagePath = page > 1 ? `${basePath}page/${page}/` : basePath;
 
   try {
-    const html = await fetchCb01Url(pagePath);
+    const html = await fetchCineblogUrl(pagePath);
     const $ = cheerio.load(html);
     const rawItems = [];
 
-    $('article, .post, .card, div[class*="post"]').each((i, el) => {
-      const a = $(el).find('h2 a, h3 a, a.entry-title').first();
-      const titleRaw = $(el).find('h2, h3').text().trim();
+    $('article, .post, .card, div[class*="post"], .box').each((i, el) => {
+      const a = $(el).find('h2 a, h3 a, a.entry-title, a.title').first();
+      const titleRaw = $(el).find('h2, h3, .title').first().text().trim();
       const href = a.attr('href') || $(el).find('a').first().attr('href');
 
-      if (href && titleRaw && !titleRaw.includes('avviso')) {
-        const title = titleRaw.replace(/\[HD\]|\(20\d\d\)|\(19\d\d\)/gi, '').trim();
+      if (href && titleRaw && !titleRaw.toLowerCase().includes('avviso') && !titleRaw.toLowerCase().includes('pubblicit')) {
+        const cleanTitle = titleRaw.replace(/\[HD\]|\[ITA\]|\(20\d\d\)|\(19\d\d\)/gi, '').trim();
         const yearMatch = titleRaw.match(/\b(20\d\d|19\d\d)\b/);
 
         rawItems.push({
-          id: `cb01_${section}_${rawItems.length}_${page}`,
-          title: title,
+          id: `cine_${section}_${rawItems.length}_${page}`,
+          title: cleanTitle,
           fullTitle: titleRaw,
           detailUrl: href,
           year: yearMatch ? yearMatch[0] : (section === 'serietv' ? 'Serie TV' : '2026'),
@@ -162,6 +151,7 @@ app.get('/api/cb01/catalog', async (req, res) => {
   }
 });
 
+// 2. ESTRAZIONE LINK STREAMING ED EPISODI
 app.get('/api/cb01/movie-links', async (req, res) => {
   const movieUrl = req.query.url;
   if (!movieUrl) return res.status(400).json({ success: false, error: 'URL mancante' });
@@ -174,10 +164,10 @@ app.get('/api/cb01/movie-links', async (req, res) => {
     } catch (e) {}
 
     const isTv = pathName.includes('/serietv/');
-    const html = await fetchCb01Url(pathName);
+    const html = await fetchCineblogUrl(pathName);
     const $ = cheerio.load(html);
 
-    const synopsis = $('.entry-content p, .story p').first().text().trim() || 'Trama e dettagli estratti da CB01';
+    const synopsis = $('.entry-content p, .story p, .content p, .desc').first().text().trim() || 'Trama e dettagli estratti da Cineblog';
     const videoLinks = [];
     const episodes = [];
 
@@ -185,7 +175,7 @@ app.get('/api/cb01/movie-links', async (req, res) => {
       const href = $(link).attr('href');
       const text = $(link).text().trim();
 
-      if (href && (href.includes('uprot.net') || href.includes('stayonline.pro') || href.includes('mixdrop') || href.includes('supervideo') || href.includes('streamtape') || href.includes('swzz.xyz') || href.includes('deltabit') || href.includes('dropload') || href.includes('voe') || href.includes('maxstream'))) {
+      if (href && (href.includes('uprot.net') || href.includes('stayonline.pro') || href.includes('mixdrop') || href.includes('supervideo') || href.includes('streamtape') || href.includes('swzz.xyz') || href.includes('deltabit') || href.includes('dropload') || href.includes('voe') || href.includes('maxstream') || href.includes('vidoza') || href.includes('turbovid'))) {
         let hostName = text || 'Streaming Server';
         if (href.includes('stayonline.pro') || href.includes('mixdrop')) hostName = 'Mixdrop HD (Audio ITA)';
         else if (href.includes('uprot.net') || href.includes('maxstream')) hostName = 'Maxstream HD (Audio ITA)';
