@@ -18,9 +18,7 @@ let lastDnsFetch = 0;
 
 async function getDomainIp(domain = 'cb01uno.lat') {
   const now = Date.now();
-  if (cachedIp && now - lastDnsFetch < 300000) {
-    return cachedIp;
-  }
+  if (cachedIp && now - lastDnsFetch < 300000) return cachedIp;
   try {
     const doh = await axios.get(`https://cloudflare-dns.com/dns-query?name=${domain}&type=A`, {
       headers: { 'accept': 'application/dns-json' },
@@ -31,9 +29,7 @@ async function getDomainIp(domain = 'cb01uno.lat') {
       lastDnsFetch = now;
       return cachedIp;
     }
-  } catch (e) {
-    console.warn('Errore DoH, fallback IP:', e.message);
-  }
+  } catch (e) {}
   return cachedIp || '104.21.22.13';
 }
 
@@ -58,7 +54,6 @@ async function fetchCb01Url(urlPath = '/') {
     };
 
     const req = https.request(options, (res) => {
-      // Segui redirect se necessario
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         let loc = res.headers.location;
         if (loc.startsWith('http')) {
@@ -78,13 +73,12 @@ async function fetchCb01Url(urlPath = '/') {
     req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Timeout richiesta CB01'));
+      reject(new Error('Timeout'));
     });
     req.end();
   });
 }
 
-// Risolutore locandina HD
 async function getHdPoster(title, isTv = false) {
   const cacheKey = `${isTv ? 'tv_' : 'm_'}${title}`;
   if (posterCache[cacheKey]) return posterCache[cacheKey];
@@ -104,15 +98,13 @@ async function getHdPoster(title, isTv = false) {
   return 'https://via.placeholder.com/300x450/1e2130/ffffff?text=' + encodeURIComponent(title);
 }
 
-// Endpoint base per controllo stato
 app.get('/', (req, res) => {
   res.json({ status: 'online', service: 'CB01 Scraper Backend' });
 });
 
-// 1. Catalogo Diviso tra FILM e SERIE TV da cb01
 app.get('/api/cb01/catalog', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const section = req.query.section || 'movies'; // 'movies' o 'serietv'
+  const section = req.query.section || 'movies';
   const basePath = section === 'serietv' ? '/serietv/' : '/';
   const pagePath = page > 1 ? `${basePath}page/${page}/` : basePath;
 
@@ -142,25 +134,19 @@ app.get('/api/cb01/catalog', async (req, res) => {
       }
     });
 
-    // Locandine HD per ogni elemento
     const itemsWithPosters = await Promise.all(
       rawItems.map(async (item) => {
         const hdPoster = await getHdPoster(item.title, section === 'serietv');
-        return {
-          ...item,
-          poster: hdPoster
-        };
+        return { ...item, poster: hdPoster };
       })
     );
 
     res.json({ success: true, section, page: Number(page), items: itemsWithPosters });
   } catch (err) {
-    console.error('Errore /api/cb01/catalog:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// 2. Estrazione Link Video & Episodi
 app.get('/api/cb01/movie-links', async (req, res) => {
   const movieUrl = req.query.url;
   if (!movieUrl) return res.status(400).json({ success: false, error: 'URL mancante' });
@@ -208,15 +194,8 @@ app.get('/api/cb01/movie-links', async (req, res) => {
       }
     }
 
-    res.json({
-      success: true,
-      isTv,
-      synopsis,
-      videoLinks,
-      episodes
-    });
+    res.json({ success: true, isTv, synopsis, videoLinks, episodes });
   } catch (err) {
-    console.error('Errore /api/cb01/movie-links:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -224,3 +203,4 @@ app.get('/api/cb01/movie-links', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Scraper Backend Attivo su porta ${PORT}`);
 });
+
