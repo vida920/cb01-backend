@@ -13,7 +13,6 @@ app.use(express.json());
 const TMDB_API_KEY = '844dba0bfd8f3a4f3799f6130ef9e335';
 const posterCache = {};
 
-// Ottieni IP reale di cb01 bypassando blocchi DNS
 let cachedIp = null;
 let lastDnsFetch = 0;
 
@@ -63,7 +62,10 @@ async function fetchCb01Url(urlPath = '/') {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         let loc = res.headers.location;
         if (loc.startsWith('http')) {
-          try { loc = new URL(loc).pathname; } catch (e) {}
+          try {
+            const parsed = new URL(loc);
+            loc = parsed.pathname + (parsed.search || '');
+          } catch (e) {}
         }
         return fetchCb01Url(loc).then(resolve).catch(reject);
       }
@@ -102,6 +104,11 @@ async function getHdPoster(title, isTv = false) {
   return 'https://via.placeholder.com/300x450/1e2130/ffffff?text=' + encodeURIComponent(title);
 }
 
+// Endpoint base per controllo stato
+app.get('/', (req, res) => {
+  res.json({ status: 'online', service: 'CB01 Scraper Backend' });
+});
+
 // 1. Catalogo Diviso tra FILM e SERIE TV da cb01
 app.get('/api/cb01/catalog', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -114,10 +121,10 @@ app.get('/api/cb01/catalog', async (req, res) => {
     const $ = cheerio.load(html);
     const rawItems = [];
 
-    $('article, .post').each((i, el) => {
+    $('article, .post, .card, div[class*="post"]').each((i, el) => {
       const a = $(el).find('h2 a, h3 a, a.entry-title').first();
       const titleRaw = $(el).find('h2, h3').text().trim();
-      const href = a.attr('href');
+      const href = a.attr('href') || $(el).find('a').first().attr('href');
 
       if (href && titleRaw && !titleRaw.includes('avviso')) {
         const title = titleRaw.replace(/\[HD\]|\(20\d\d\)|\(19\d\d\)/gi, '').trim();
@@ -161,7 +168,8 @@ app.get('/api/cb01/movie-links', async (req, res) => {
   try {
     let pathName = movieUrl;
     try {
-      pathName = new URL(movieUrl).pathname;
+      const u = new URL(movieUrl);
+      pathName = u.pathname + (u.search || '');
     } catch (e) {}
 
     const isTv = pathName.includes('/serietv/');
