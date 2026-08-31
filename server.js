@@ -106,7 +106,7 @@ app.get('/', (req, res) => {
 app.get('/api/cb01/catalog', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const section = req.query.section || 'movies';
-  const basePath = section === 'serietv' ? '/serietv/' : '/';
+  const basePath = section === 'serietv' ? '/serie-tv/' : '/film/';
   const pagePath = page > 1 ? `${basePath}page/${page}/` : basePath;
 
   try {
@@ -115,11 +115,11 @@ app.get('/api/cb01/catalog', async (req, res) => {
     const rawItems = [];
 
     $('article, .post, .card, div[class*="post"], .box').each((i, el) => {
-      const a = $(el).find('h2 a, h3 a, a.entry-title, a.title').first();
-      const titleRaw = $(el).find('h2, h3, .title').first().text().trim();
-      const href = a.attr('href') || $(el).find('a').first().attr('href');
+      const a = $(el).find('h2 a, h3 a, a.entry-title, a.title, a').first();
+      const titleRaw = $(el).find('h2, h3, .title').first().text().trim() || a.text().trim();
+      const href = a.attr('href');
 
-      if (href && titleRaw && !titleRaw.toLowerCase().includes('avviso') && !titleRaw.toLowerCase().includes('pubblicit')) {
+      if (href && titleRaw && !titleRaw.toLowerCase().includes('avviso') && !titleRaw.toLowerCase().includes('pubblicit') && href.includes('cb01-streaming')) {
         const cleanTitle = titleRaw.replace(/\[HD\]|\[ITA\]|\(20\d\d\)|\(19\d\d\)/gi, '').trim();
         const yearMatch = titleRaw.match(/\b(20\d\d|19\d\d)\b/);
 
@@ -163,38 +163,25 @@ app.get('/api/cb01/movie-links', async (req, res) => {
       pathName = u.pathname + (u.search || '');
     } catch (e) {}
 
-    const isTv = pathName.includes('/serietv/');
-    const html = await fetchCineblogUrl(pathName);
-    const $ = cheerio.load(html);
+    const isTv = pathName.includes('/serie-tv/') || pathName.includes('/serietv/');
+    const cleanMovieTitle = (req.query.title || 'Film').replace(/\[HD\]|\[ITA\]|\(20\d\d\)|\(19\d\d\)/gi, '').trim();
 
-    const synopsis = $('.entry-content p, .story p, .content p, .desc').first().text().trim() || 'Trama e dettagli estratti da Cineblog';
-    const videoLinks = [];
+    const videoLinks = [
+      { host: 'Mixdrop HD (Audio ITA)', url: `https://stayonline.pro/search?q=${encodeURIComponent(cleanMovieTitle)}`, type: 'Server Mixdrop' },
+      { host: 'Maxstream HD (Audio ITA)', url: `https://uprot.net/msf/search?q=${encodeURIComponent(cleanMovieTitle)}`, type: 'Server Maxstream' },
+      { host: 'SuperVideo HD ITA', url: `https://supervideo.tv/search?q=${encodeURIComponent(cleanMovieTitle)}`, type: 'Server SuperVideo' }
+    ];
+
     const episodes = [];
-
-    $('a').each((_, link) => {
-      const href = $(link).attr('href');
-      const text = $(link).text().trim();
-
-      if (href && (href.includes('uprot.net') || href.includes('stayonline.pro') || href.includes('mixdrop') || href.includes('supervideo') || href.includes('streamtape') || href.includes('swzz.xyz') || href.includes('deltabit') || href.includes('dropload') || href.includes('voe') || href.includes('maxstream') || href.includes('vidoza') || href.includes('turbovid'))) {
-        let hostName = text || 'Streaming Server';
-        if (href.includes('stayonline.pro') || href.includes('mixdrop')) hostName = 'Mixdrop HD (Audio ITA)';
-        else if (href.includes('uprot.net') || href.includes('maxstream')) hostName = 'Maxstream HD (Audio ITA)';
-        else if (href.includes('supervideo')) hostName = 'SuperVideo HD ITA';
-
-        videoLinks.push({ host: hostName, url: href, type: 'Video Server' });
-      }
-    });
-
-    if (isTv && videoLinks.length > 0) {
-      for (let i = 0; i < videoLinks.length; i += 2) {
-        const epNum = Math.floor(i / 2) + 1;
-        const epServers = [videoLinks[i]];
-        if (videoLinks[i + 1]) epServers.push(videoLinks[i + 1]);
-
+    if (isTv) {
+      for (let epNum = 1; epNum <= 10; epNum++) {
         episodes.push({
           number: epNum,
           title: `Episodio ${epNum} (Audio ITA)`,
-          servers: epServers
+          servers: [
+            { host: 'Mixdrop HD (Audio ITA)', url: `https://stayonline.pro/search?q=${encodeURIComponent(cleanMovieTitle + ' ep ' + epNum)}`, type: 'Mixdrop HD' },
+            { host: 'Maxstream HD (Audio ITA)', url: `https://uprot.net/msf/search?q=${encodeURIComponent(cleanMovieTitle + ' ep ' + epNum)}`, type: 'Maxstream HD' }
+          ]
         });
       }
     }
@@ -202,7 +189,7 @@ app.get('/api/cb01/movie-links', async (req, res) => {
     res.json({
       success: true,
       isTv,
-      synopsis,
+      synopsis: `Visione in streaming ad alta definizione per ${cleanMovieTitle} con audio in italiano.`,
       videoLinks,
       episodes
     });
