@@ -34,6 +34,18 @@ async function getDomainIp(domain = 'cb01uno.lat') {
 }
 
 async function fetchCb01Url(urlPath = '/') {
+  try {
+    const directRes = await axios.get('https://cb01uno.lat' + urlPath, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7'
+      },
+      timeout: 8000
+    });
+    if (directRes.data) return directRes.data;
+  } catch (directErr) {}
+
   const domain = 'cb01uno.lat';
   const ip = await getDomainIp(domain);
 
@@ -73,7 +85,7 @@ async function fetchCb01Url(urlPath = '/') {
     req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Timeout'));
+      reject(new Error('Timeout richiesta CB01'));
     });
     req.end();
   });
@@ -137,7 +149,10 @@ app.get('/api/cb01/catalog', async (req, res) => {
     const itemsWithPosters = await Promise.all(
       rawItems.map(async (item) => {
         const hdPoster = await getHdPoster(item.title, section === 'serietv');
-        return { ...item, poster: hdPoster };
+        return {
+          ...item,
+          poster: hdPoster
+        };
       })
     );
 
@@ -194,7 +209,13 @@ app.get('/api/cb01/movie-links', async (req, res) => {
       }
     }
 
-    res.json({ success: true, isTv, synopsis, videoLinks, episodes });
+    res.json({
+      success: true,
+      isTv,
+      synopsis,
+      videoLinks,
+      episodes
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -203,4 +224,3 @@ app.get('/api/cb01/movie-links', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Scraper Backend Attivo su porta ${PORT}`);
 });
-
