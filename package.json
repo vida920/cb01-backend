@@ -1,0 +1,39 @@
+{
+  "name": "expo-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "axios": "^1.20.0",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "expo": "~54.0.0",
+    "expo-asset": "~12.0.13",
+    "expo-clipboard": "~8.0.8",
+    "expo-constants": "~18.0.14",
+    "expo-file-system": "~19.0.24",
+    "expo-font": "~14.0.12",
+    "expo-linking": "^57.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.11",
+    "express": "^5.2.1",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-webview": "13.15.0"
+  },
+  "scripts": {
+    "start": "concurrently \"node server.js\" \"expo start\"",
+    "dev": "concurrently \"node server.js\" \"expo start\"",
+    "server": "node server.js",
+    "expo": "expo start",
+    "android": "concurrently \"node server.js\" \"expo start --android\"",
+    "ios": "concurrently \"node server.js\" \"expo start --ios\"",
+    "web": "concurrently \"node server.js\" \"expo start --web\""
+  },
+  "private": true,
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}
